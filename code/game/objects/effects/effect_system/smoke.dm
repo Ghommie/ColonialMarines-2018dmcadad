@@ -20,7 +20,8 @@
 	pixel_y = -32
 
 /obj/effect/particle_effect/smoke/New(loc, oldamount)
-	..()
+	. = ..()
+	create_reagents(500)
 	if(oldamount)
 		amount = oldamount - 1
 	time_to_live += rand(-1,1)
@@ -37,10 +38,14 @@
 	time_to_live--
 	if(time_to_live <= 0)
 		cdel(src)
-	else if(time_to_live == 1)
+		return FALSE
+	if(time_to_live == 1)
 		alpha -= 75
 		amount = 0
 		SetOpacity(0)
+	for(var/mob/living/L in range(0,src))
+		affect(L)
+	return TRUE
 
 
 /obj/effect/particle_effect/smoke/Crossed(atom/movable/M)
@@ -86,10 +91,14 @@
 			return TRUE
 
 
-/obj/effect/particle_effect/smoke/proc/affect(var/mob/living/carbon/M)
-	if (istype(M))
-		return 0
-	return 1
+/obj/effect/particle_effect/smoke/proc/affect(var/mob/living/carbon/C)
+	if (istype(C))
+		return FALSE
+	if(lifetime<1)
+		return FALSE
+	if(C.internal != null || C.has_smoke_protection())
+		return FALSE
+	return TRUE
 
 /////////////////////////////////////////////
 // Bad smoke
@@ -169,12 +178,11 @@
 		if(H.gloves)
 			if(istype(Y) && Y.cloaked)
 				return
-		return M.smokecloak_on()
-	return M.smokecloak_on()
+	M.smokecloak_on()
 
 
 /obj/effect/particle_effect/smoke/tactical/proc/uncloak_smoke_act(var/mob/living/M)
-	return M.smokecloak_off()
+	M.smokecloak_off()
 
 /////////////////////////////////////////////
 // Sleep smoke

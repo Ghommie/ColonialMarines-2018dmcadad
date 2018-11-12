@@ -3,7 +3,7 @@
 /datum/chemical_reaction
 	var/name = null
 	var/id = null
-	var/list/results = null
+	var/list/results = new/list()
 	var/list/required_reagents = new/list()
 	var/list/required_catalysts = new/list()
 

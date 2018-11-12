@@ -1,35 +1,94 @@
+/datum/chemical_reaction/reagent_explosion
+	name = "Generic explosive"
+	id = "reagent_explosion"
+	var/strengthdiv = 10
+	var/modifier = 0
 
+/datum/chemical_reaction/reagent_explosion/on_reaction(datum/reagents/holder, created_volume)
+	var/turf/T = get_turf(holder.my_atom)
+	var/inside_msg
+	if(ismob(holder.my_atom))
+		var/mob/M = holder.my_atom
+		inside_msg = " inside [ADMIN_LOOKUPFLW(M)]"
+	var/lastkey = holder.my_atom.fingerprintslast
+	var/touch_msg = "N/A"
+	if(lastkey)
+		var/mob/toucher = get_mob_by_key(lastkey)
+		touch_msg = "[ADMIN_LOOKUPFLW(toucher)]"
+	message_admins("Reagent explosion reaction occurred at [ADMIN_VERBOSEJMP(T)][inside_msg]. Last Fingerprint: [touch_msg].")
+	log_game("Reagent explosion reaction occurred at [AREACOORD(T)]. Last Fingerprint: [lastkey ? lastkey : "N/A"]." )
+	var/datum/effect_system/reagents_explosion/e = new()
+	e.set_up(modifier + round(created_volume/strengthdiv, 1), T, 0, 0)
+	e.start()
+	holder.clear_reagents()
 
-/datum/chemical_reaction/explosion_potassium
-	name = "Explosion"
-	id = "explosion_potassium"
-	required_reagents = list("water" = 1, "potassium" = 1)
-	on_reaction(var/datum/reagents/holder, var/created_volume)
-		var/atom/location = holder.my_atom.loc
-		if(holder.my_atom && location) //It exists outside of null space.
-			var/datum/effect_system/reagents_explosion/e = new()
-			e.set_up(round (created_volume/10, 1), holder.my_atom, 0, 0)
-			e.holder_damage(holder.my_atom)
-			if(isliving(holder.my_atom))
-				e.amount *= 0.5
-				var/mob/living/L = holder.my_atom
-				if(L.stat!=DEAD)
-					e.amount *= 0.5
-			if(e.start()) //Gets rid of doubling down on explosives for gameplay purposes. Hacky, but enough for now.
-			//Should be removed when we actually balance out chemistry.
-				var/obj/item/explosive/grenade/g
-				var/obj/item/storage/s
-				for(g in location) cdel(g) //Grab anything on our turf/something.
-				if(istype(location, /obj/item/storage) || ismob(location)) //If we're in a bag or person.
-					for(s in location) //Find all other containers.
-						for(g in s) cdel(g) //Delete all the grenades.
-				if(istype(location.loc, /obj/item/storage) || ismob(location.loc)) //If the container is in another container.
-					for(g in location.loc) cdel(g) //Delete all the grenades inside.
-					for(s in location.loc) //Search for more containers.
-						if(s == location) continue //Don't search the container we're in.
-						for(g in s) cdel(g) //Delete all the grenades inside.
-		holder.clear_reagents()
+/datum/chemical_reaction/reagent_explosion/nitroglycerin
+	name = "Nitroglycerin"
+	id = "nitroglycerin"
+	results = list("nitroglycerin" = 2)
+	required_reagents = list("glycerol" = 1, "facid" = 1, "sacid" = 1)
+	strengthdiv = 2
+
+/datum/chemical_reaction/reagent_explosion/nitroglycerin/on_reaction(datum/reagents/holder, created_volume)
+	if(holder.has_reagent("stabilizing_agent"))
 		return
+	holder.remove_reagent("nitroglycerin", created_volume*2)
+	. = ..()
+
+/datum/chemical_reaction/reagent_explosion/potassium_explosion
+	name = "Explosion"
+	id = "potassium_explosion"
+	required_reagents = list("water" = 1, "potassium" = 1)
+	strengthdiv = 10
+
+/datum/chemical_reaction/reagent_explosion/potassium_explosion/holyboom
+	name = "Holy Explosion"
+	id = "holyboom"
+	required_reagents = list("holywater" = 1, "potassium" = 1)
+
+/datum/chemical_reaction/reagent_explosion/potassium_explosion/holyboom/on_reaction(datum/reagents/holder, created_volume)
+	if(created_volume >= 150)
+		playsound(get_turf(holder.my_atom), 'sound/effects/pray.ogg', 80, 0, round(created_volume/48))
+		strengthdiv = 8
+	/*
+		for(var/mob/living/simple_animal/revenant/R in get_hearers_in_view(7,get_turf(holder.my_atom)))
+			var/deity
+			if(SSreligion.deity)
+				deity = SSreligion.deity
+			else
+				deity = "Christ"
+			to_chat(R, "<span class='userdanger'>The power of [deity] compels you!</span>")
+			R.stun(20)
+			R.reveal(100)
+			R.adjustHealth(50)
+		sleep(20)
+		for(var/mob/living/carbon/C in get_hearers_in_view(round(created_volume/48,1),get_turf(holder.my_atom)))
+			if(iscultist(C))
+				to_chat(C, "<span class='userdanger'>The divine explosion sears you!</span>")
+				C.Knockdown(40)
+				C.adjust_fire_stacks(5)
+				C.IgniteMob()
+								*/
+	..()
+
+/datum/chemical_reaction/blackpowder
+	name = "Black Powder"
+	id = "blackpowder"
+	results = list("blackpowder" = 3)
+	required_reagents = list("saltpetre" = 1, "charcoal" = 1, "sulfur" = 1)
+
+/datum/chemical_reaction/reagent_explosion/blackpowder_explosion
+	name = "Black Powder Kaboom"
+	id = "blackpowder_explosion"
+	required_reagents = list("blackpowder" = 1)
+	required_temp = 474
+	strengthdiv = 6
+	modifier = 1
+	mix_message = "<span class='boldannounce'>Sparks start flying around the black powder!</span>"
+
+/datum/chemical_reaction/reagent_explosion/blackpowder_explosion/on_reaction(datum/reagents/holder, created_volume)
+	sleep(rand(50,100))
+	..()
 
 /datum/chemical_reaction/emp_pulse
 	name = "EMP Pulse"
@@ -43,6 +102,29 @@
 		empulse(location, round(created_volume / 24), round(created_volume / 14), 1)
 		holder.clear_reagents()
 
+/datum/chemical_reaction/reagent_explosion/methsplosion
+	name = "Meth explosion"
+	id = "methboom1"
+	required_temp = 380 //slightly above the meth mix time.
+	required_reagents = list("methamphetamine" = 1)
+	strengthdiv = 6
+	modifier = 1
+	mob_react = FALSE
+
+/datum/chemical_reaction/reagent_explosion/methsplosion/on_reaction(datum/reagents/holder, created_volume)
+	holder.chem_temp = 1000 // hot as shit
+	..()
+
+/datum/chemical_reaction/reagent_explosion/methsplosion/methboom2
+	id = "methboom2"
+	required_reagents = list("diethylamine" = 1, "iodine" = 1, "phosphorus" = 1, "hydrogen" = 1) //diethylamine is often left over from mixing the ephedrine.
+	required_temp = 300 //room temperature, chilling it even a little will prevent the explosion
+
+/datum/chemical_reaction/stabilizing_agent
+	name = "stabilizing_agent"
+	id = "stabilizing_agent"
+	results = list("stabilizing_agent" = 3)
+	required_reagents = list("iron" = 1, "oxygen" = 1, "hydrogen" = 1)
 
 /datum/chemical_reaction/hptoxin
 	name = "Toxin"
@@ -137,26 +219,6 @@
 	results = list("glycerol" = 1)
 	required_reagents = list("cornoil" = 3, "sacid" = 1)
 
-/datum/chemical_reaction/nitroglycerin
-	name = "Nitroglycerin"
-	id = "nitroglycerin"
-	results = list("nitroglycerin" = 2)
-	required_reagents = list("glycerol" = 1, "pacid" = 1, "sacid" = 1)
-
-/datum/chemical_reaction/nitroglycerin/on_reaction(var/datum/reagents/holder, var/created_volume)
-	var/datum/effect_system/reagents_explosion/e = new()
-	e.set_up(round (created_volume/2, 1), holder.my_atom, 0, 0)
-	e.holder_damage(holder.my_atom)
-	if(isliving(holder.my_atom))
-		e.amount *= 0.5
-		var/mob/living/L = holder.my_atom
-		if(L.stat!=DEAD)
-			e.amount *= 0.5
-	e.start()
-
-	holder.clear_reagents()
-
-
 /datum/chemical_reaction/flash_powder
 	name = "Flash powder"
 	id = "flash_powder"
@@ -199,19 +261,25 @@
 		new /obj/flamer_fire(T, 5 + rand(0,11))
 
 
-/datum/chemical_reaction/chemsmoke
-	name = "Chemsmoke"
-	id = "chemsmoke"
+/datum/chemical_reaction/smoke_powder
+	name = "smoke_powder"
+	id = "smoke_powder"
+	results = list("smoke_powder" = 3)
 	required_reagents = list("potassium" = 1, "sugar" = 1, "phosphorus" = 1)
 
-/datum/chemical_reaction/chemsmoke/on_reaction(var/datum/reagents/holder, var/created_volume)
+/datum/chemical_reaction/smoke_powder/on_reaction(datum/reagents/holder, created_volume)
+	if(holder.has_reagent("stabilizing_agent"))
+		return
+	holder.remove_reagent("smoke_powder", created_volume*3)
+	var/smoke_radius = round(sqrt(created_volume * 1.5), 1)
 	var/location = get_turf(holder.my_atom)
-	var/datum/effect_system/smoke_spread/chem/S = new /datum/effect_system/smoke_spread/chem
+	var/datum/effect_system/smoke_spread/chem/S = new
 	S.attach(location)
-	S.set_up(holder, created_volume, 0, location)
-	playsound(location, 'sound/effects/smoke.ogg', 25, 1)
-	spawn(0)
+	playsound(location, 'sound/effects/smoke.ogg', 50, 1, -3)
+	if(S)
+		S.set_up(holder, smoke_radius, location, 0)
 		S.start()
+	if(holder && holder.my_atom)
 	holder.clear_reagents()
 
 

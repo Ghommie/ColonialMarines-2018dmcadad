@@ -3,27 +3,42 @@
 /////////////////////////////////////////////
 /obj/effect/particle_effect/smoke/chem
 	icon = 'icons/effects/chemsmoke.dmi'
-	opacity = 0
-	time_to_live = 300
+	opacity = FALSE
+	time_to_live = 10
 	flags_pass = PASSTABLE|PASSGRILLE|PASSGLASS		//PASSGLASS is fine here, it's just so the visual effect can "flow" around glass
-	anchored = 1
 
-/obj/effect/particle_effect/smoke/chem/New()
-	..()
-	var/datum/reagents/R = new/datum/reagents(500)
-	reagents = R
-	R.my_atom = src
+/obj/effect/particle_effect/smoke/chem/process()
+	if(..())
+		var/turf/T = get_turf(src)
+		var/fraction = 1/initial(lifetime)
+		for(var/atom/movable/AM in T)
+			if(AM.type == src.type)
+				continue
+			if(T.intact && AM.level == 1) //hidden under the floor
+				continue
+			reagents.reaction(AM, TOUCH, fraction)
 
+		reagents.reaction(T, TOUCH, fraction)
+	return TRUE
+
+/obj/effect/particle_effect/smoke/chem/affect(mob/living/carbon/M)
+	if(lifetime<1)
+		return FALSE
+	if(!istype(M))
+		return FALSE
+	var/mob/living/carbon/C = M
+	if(C.internal != null || C.has_smoke_protection())
+		return FALSE
+	var/fraction = 1/initial(lifetime)
+	reagents.copy_to(C, fraction*reagents.total_volume)
+	reagents.reaction(M, INGEST, fraction)
+	return TRUE
 
 
 
 /datum/effect_system/smoke_spread/chem
 	smoke_type = /obj/effect/particle_effect/smoke/chem
 	var/obj/chemholder
-	var/range
-	var/list/targetTurfs
-	var/list/wallList
-	var/density
 
 
 /datum/effect_system/smoke_spread/chem/New()
@@ -40,57 +55,35 @@
 // Culls the selected turfs to a (roughly) circle shape, then calls smokeFlow() to make
 // sure the smoke can actually path to the turfs. This culls any turfs it can't reach.
 //------------------------------------------
-/datum/effect_system/smoke_spread/chem/set_up(var/datum/reagents/carry = null, n = 10, c = 0, loca, direct)
-	range = n * 0.3
-	cardinals = c
-	carry.copy_to(chemholder, carry.total_volume)
-
-	if(istype(loca, /turf/))
+/datum/effect_system/smoke_spread/chem/set_up(datum/reagents/carry = null, radius = 1, loca, silent = FALSE)
+	if(isturf(loca))
 		location = loca
 	else
 		location = get_turf(loca)
-	if(!location)
-		return
+	amount = radius
+	carry.copy_to(chemholder, carry.total_volume)
 
-	targetTurfs = new()
+	if(!silent)
+		var/contained = ""
+		for(var/reagent in carry.reagent_list)
+			contained += " [reagent] "
+		if(contained)
+			contained = "\[[contained]\]"
+		var/area/A = get_area(location)
 
-	//build affected area list
-	for(var/turf/T in view(range, location))
-		//cull turfs to circle
-		if(cheap_pythag(T.x - location.x, T.y - location.y) <= range)
-			targetTurfs += T
+		var/where = "[A.name]|[location.x], [location.y]"
+		var/whereLink = "<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[location.x];Y=[location.y];Z=[location.z]'>[where]</a>"
 
-	//make secondary list for reagents that affect walls
-	if(chemholder.reagents.has_reagent("thermite") || chemholder.reagents.has_reagent("plantbgone"))
-		wallList = new()
-
-	//pathing check
-	smokeFlow(location, targetTurfs, wallList)
-
-	//set the density of the cloud - for diluting reagents
-	density = max(1, targetTurfs.len / 4)	//clamp the cloud density minimum to 1 so it cant multiply the reagents
-
-	//Admin messaging
-	var/contained = ""
-	for(var/reagent in carry.reagent_list)
-		contained += " [reagent] "
-	if(contained)
-		contained = "\[[contained]\]"
-	var/area/A = get_area(location)
-
-	var/where = "[A.name]|[location.x], [location.y]"
-	var/whereLink = "<A HREF='?_src_=holder;adminplayerobservecoodjump=1;X=[location.x];Y=[location.y];Z=[location.z]'>[where]</a>"
-
-	if(carry.my_atom.fingerprintslast)
-		var/mob/M = get_mob_by_key(carry.my_atom.fingerprintslast)
-		var/more = ""
-		if(M)
-			more = "(<A HREF='?_src_=holder;adminmoreinfo=\ref[M]'>?</a>)"
-		message_admins("A chemical smoke reaction has taken place in ([whereLink])[contained]. Last associated key is [carry.my_atom.fingerprintslast][more].", 0, 1)
-		log_game("A chemical smoke reaction has taken place in ([where])[contained]. Last associated key is [carry.my_atom.fingerprintslast].")
-	else
-		message_admins("A chemical smoke reaction has taken place in ([whereLink]). No associated key.", 0, 1)
-		log_game("A chemical smoke reaction has taken place in ([where])[contained]. No associated key.")
+		if(carry.my_atom.fingerprintslast)
+			var/mob/M = get_mob_by_key(carry.my_atom.fingerprintslast)
+			var/more = ""
+			if(M)
+				more = "(<A HREF='?_src_=holder;adminmoreinfo=\ref[M]'>?</a>)"
+			message_admins("A chemical smoke reaction has taken place in ([whereLink])[contained]. Last associated key is [carry.my_atom.fingerprintslast][more].", 0, 1)
+			log_game("A chemical smoke reaction has taken place in ([where])[contained]. Last associated key is [carry.my_atom.fingerprintslast].")
+		else
+			message_admins("A chemical smoke reaction has taken place in ([whereLink]). No associated key.", 0, 1)
+			log_game("A chemical smoke reaction has taken place in ([where])[contained]. No associated key.")
 
 
 //------------------------------------------
